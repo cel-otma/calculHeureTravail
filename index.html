@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PointTrack — Traitement des Pointages</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #0A0F1E;
+  --surface:   #111827;
+  --card:      #161D2F;
+  --border:    #1E2D4A;
+  --accent:    #3B82F6;
+  --accent2:   #8B5CF6;
+  --green:     #10B981;
+  --amber:     #F59E0B;
+  --red:       #EF4444;
+  --text:      #E2E8F0;
+  --muted:     #64748B;
+  --mono:      'DM Mono', monospace;
+  --sans:      'DM Sans', sans-serif;
+  --display:   'Syne', sans-serif;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Background grid */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(59,130,246,.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(59,130,246,.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.page { position: relative; z-index: 1; max-width: 860px; margin: 0 auto; padding: 0 24px 80px; }
+
+/* ── HEADER ── */
+header {
+  padding: 52px 0 40px;
+  display: flex;
+  align-items: flex-end;
+  gap: 20px;
+}
+.logo-mark {
+  width: 48px; height: 48px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border-radius: 14px;
+  display: grid; place-items: center;
+  font-size: 22px;
+  flex-shrink: 0;
+  box-shadow: 0 0 28px rgba(59,130,246,.35);
+}
+header h1 {
+  font-family: var(--display);
+  font-size: 28px; font-weight: 800;
+  letter-spacing: -0.5px;
+  line-height: 1;
+}
+header p {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 4px;
+  font-weight: 300;
+}
+
+/* ── CARDS ── */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px;
+  margin-bottom: 20px;
+}
+
+.card-title {
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.card-title::before {
+  content: '';
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* ── DROP ZONE ── */
+#dropzone {
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  padding: 48px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .2s, background .2s;
+  position: relative;
+  overflow: hidden;
+}
+#dropzone:hover, #dropzone.drag-over {
+  border-color: var(--accent);
+  background: rgba(59,130,246,.05);
+}
+#dropzone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.dz-icon { font-size: 40px; margin-bottom: 12px; display: block; }
+.dz-text { font-size: 15px; color: var(--text); font-weight: 500; }
+.dz-sub  { font-size: 12px; color: var(--muted); margin-top: 6px; }
+.dz-badge {
+  display: inline-block;
+  background: var(--border);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  margin-top: 10px;
+}
+
+/* ── FILE PREVIEW ── */
+#file-preview {
+  display: none;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  background: rgba(59,130,246,.08);
+  border: 1px solid rgba(59,130,246,.25);
+  border-radius: 10px;
+  margin-top: 16px;
+}
+#file-preview .fp-icon { font-size: 24px; }
+#file-preview .fp-name { font-family: var(--mono); font-size: 13px; color: var(--accent); }
+#file-preview .fp-size { font-size: 11px; color: var(--muted); }
+#file-preview .fp-remove {
+  margin-left: auto;
+  background: none; border: none;
+  color: var(--muted); cursor: pointer;
+  font-size: 18px; line-height: 1;
+  transition: color .15s;
+}
+#file-preview .fp-remove:hover { color: var(--red); }
+
+/* ── HOW IT WORKS ── */
+.steps { display: grid; gap: 12px; }
+.step {
+  display: flex; align-items: flex-start; gap: 14px;
+  padding: 14px;
+  background: rgba(255,255,255,.02);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+.step-num {
+  width: 28px; height: 28px; border-radius: 8px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  display: grid; place-items: center;
+  font-family: var(--mono); font-size: 11px; font-weight: 500;
+  flex-shrink: 0;
+  box-shadow: 0 0 12px rgba(59,130,246,.3);
+}
+.step-label { font-size: 13px; font-weight: 500; color: var(--text); }
+.step-desc  { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+/* ── COLUMN INFO ── */
+.col-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+}
+.col-chip {
+  background: rgba(255,255,255,.03);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12px;
+}
+.col-chip .cc-name { font-family: var(--mono); color: var(--accent); font-size: 11px; margin-bottom: 3px; }
+.col-chip .cc-ex   { color: var(--muted); font-size: 11px; }
+
+/* ── BUTTON ── */
+.btn {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 13px 28px;
+  border: none; border-radius: 10px;
+  font-family: var(--display); font-size: 14px; font-weight: 700;
+  cursor: pointer; transition: all .2s;
+  letter-spacing: .3px;
+}
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #fff;
+  box-shadow: 0 4px 20px rgba(59,130,246,.35);
+  width: 100%;
+  justify-content: center;
+}
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 28px rgba(59,130,246,.45); }
+.btn-primary:active { transform: translateY(0); }
+.btn-primary:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+
+.btn-download {
+  background: linear-gradient(135deg, var(--green), #059669);
+  color: #fff;
+  box-shadow: 0 4px 20px rgba(16,185,129,.35);
+  width: 100%;
+  justify-content: center;
+  font-size: 15px;
+  padding: 16px 28px;
+}
+.btn-download:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(16,185,129,.45); }
+
+/* ── STATUS / RESULTS ── */
+#status-section { display: none; }
+.status-bar {
+  padding: 14px 18px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 16px;
+}
+.status-bar.loading { background: rgba(59,130,246,.12); border: 1px solid rgba(59,130,246,.25); color: var(--accent); }
+.status-bar.error   { background: rgba(239,68,68,.10); border: 1px solid rgba(239,68,68,.25); color: var(--red); }
+.status-bar.success { background: rgba(16,185,129,.10); border: 1px solid rgba(16,185,129,.25); color: var(--green); }
+
+.spinner {
+  width: 16px; height: 16px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.result-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.stat-box {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+  text-align: center;
+}
+.stat-val { font-family: var(--display); font-size: 32px; font-weight: 800; color: var(--accent); }
+.stat-lbl { font-size: 11px; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 1px; }
+
+/* ── FOOTER ── */
+footer {
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+  padding-top: 32px;
+  border-top: 1px solid var(--border);
+  margin-top: 40px;
+}
+
+/* ── ANIMATIONS ── */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+.card { animation: fadeIn .4s ease both; }
+.card:nth-child(2) { animation-delay: .05s; }
+.card:nth-child(3) { animation-delay: .1s; }
+.card:nth-child(4) { animation-delay: .15s; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <div class="logo-mark">⏱</div>
+    <div>
+      <h1>PointTrack</h1>
+      <p>Traitement automatique des données de pointage — Export Excel structuré</p>
+    </div>
+  </header>
+
+  <!-- UPLOAD -->
+  <div class="card">
+    <div class="card-title">Importer le fichier de pointage</div>
+    <div id="dropzone">
+      <input type="file" id="file-input" accept=".xlsx,.xls">
+      <span class="dz-icon">📂</span>
+      <div class="dz-text">Glisser-déposer votre fichier ici</div>
+      <div class="dz-sub">ou cliquer pour parcourir</div>
+      <span class="dz-badge">.xlsx &nbsp;/&nbsp; .xls</span>
+    </div>
+    <div id="file-preview">
+      <span class="fp-icon">📊</span>
+      <div>
+        <div class="fp-name" id="fp-name">—</div>
+        <div class="fp-size" id="fp-size">—</div>
+      </div>
+      <button class="fp-remove" id="fp-remove" title="Supprimer">✕</button>
+    </div>
+    <div style="margin-top:20px">
+      <button class="btn btn-primary" id="btn-process" disabled>
+        <span>⚙️</span> Traiter le fichier
+      </button>
+    </div>
+  </div>
+
+  <!-- STATUS & RESULTS -->
+  <div id="status-section">
+    <div class="status-bar loading" id="status-bar">
+      <div class="spinner"></div>
+      <span id="status-text">Traitement en cours…</span>
+    </div>
+    <div class="result-grid" id="result-grid" style="display:none">
+      <div class="stat-box"><div class="stat-val" id="stat-rows">—</div><div class="stat-lbl">Enregistrements</div></div>
+      <div class="stat-box"><div class="stat-val" id="stat-emp">—</div><div class="stat-lbl">Employés</div></div>
+      <div class="stat-box"><div class="stat-val" id="stat-ok">✓</div><div class="stat-lbl">Statut</div></div>
+    </div>
+    <button class="btn btn-download" id="btn-download" style="display:none">
+      <span>📥</span> Télécharger le fichier Excel traité
+    </button>
+  </div>
+
+  <!-- HOW IT WORKS -->
+  <div class="card">
+    <div class="card-title">Fonctionnement</div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">01</div>
+        <div>
+          <div class="step-label">Lecture & détection automatique</div>
+          <div class="step-desc">Les colonnes Date, Heure, Équipement et Utilisateur sont identifiées automatiquement.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <div>
+          <div class="step-label">Détection Entrée / Sortie</div>
+          <div class="step-desc">Le code équipement (_E = Entrée, _S = Sortie) est analysé pour classer chaque pointage.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <div>
+          <div class="step-label">Appariement des paires</div>
+          <div class="step-desc">Chaque entrée est associée à la prochaine sortie. Les sorties manquantes sont signalées (—).</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">04</div>
+        <div>
+          <div class="step-label">Calcul & export</div>
+          <div class="step-desc">Heures travaillées calculées par jour et totalisées. Export vers un fichier Excel formaté (jusqu'à 5 paires/jour).</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COLUMNS INFO -->
+  <div class="card">
+    <div class="card-title">Colonnes attendues dans le fichier source</div>
+    <div class="col-grid">
+      <div class="col-chip"><div class="cc-name">Date</div><div class="cc-ex">ex: 22/10/2025</div></div>
+      <div class="col-chip"><div class="cc-name">Heure</div><div class="cc-ex">ex: 08:31:49</div></div>
+      <div class="col-chip"><div class="cc-name">Equipement</div><div class="cc-ex">ex: P_CR_04_E--1770</div></div>
+      <div class="col-chip"><div class="cc-name">Utilisateur</div><div class="cc-ex">ex: 138699(HATAR AMINE)</div></div>
+    </div>
+    <div style="margin-top:14px; padding:12px 16px; background:rgba(245,158,11,.08); border:1px solid rgba(245,158,11,.2); border-radius:8px; font-size:12px; color:#F59E0B;">
+      💡 Les colonnes <code style="font-family:var(--mono)">Groupe Utilisateur</code> et <code style="font-family:var(--mono)">Evènement</code> sont ignorées automatiquement.
+    </div>
+  </div>
+
+  <footer>PointTrack &mdash; Traitement local &bull; Aucune donnée transmise à un serveur tiers</footer>
+
+</div>
+
+<script>
+const dropzone   = document.getElementById('dropzone');
+const fileInput  = document.getElementById('file-input');
+const fpPreview  = document.getElementById('file-preview');
+const fpName     = document.getElementById('fp-name');
+const fpSize     = document.getElementById('fp-size');
+const fpRemove   = document.getElementById('fp-remove');
+const btnProcess = document.getElementById('btn-process');
+const statusSec  = document.getElementById('status-section');
+const statusBar  = document.getElementById('status-bar');
+const statusTxt  = document.getElementById('status-text');
+const resultGrid = document.getElementById('result-grid');
+const btnDownload= document.getElementById('btn-download');
+
+let currentFile = null;
+
+function fmtSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+  return (bytes/1024/1024).toFixed(2) + ' MB';
+}
+
+function setFile(file) {
+  currentFile = file;
+  fpName.textContent = file.name;
+  fpSize.textContent = fmtSize(file.size);
+  fpPreview.style.display = 'flex';
+  btnProcess.disabled = false;
+  hideStatus();
+}
+
+function clearFile() {
+  currentFile = null;
+  fileInput.value = '';
+  fpPreview.style.display = 'none';
+  btnProcess.disabled = true;
+  hideStatus();
+}
+
+function hideStatus() {
+  statusSec.style.display = 'none';
+  resultGrid.style.display = 'none';
+  btnDownload.style.display = 'none';
+}
+
+fileInput.addEventListener('change', e => { if (e.target.files[0]) setFile(e.target.files[0]); });
+fpRemove.addEventListener('click', clearFile);
+
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f && (f.name.endsWith('.xlsx') || f.name.endsWith('.xls'))) setFile(f);
+});
+
+btnProcess.addEventListener('click', async () => {
+  if (!currentFile) return;
+
+  // show loading
+  statusSec.style.display = 'block';
+  statusBar.className = 'status-bar loading';
+  statusTxt.textContent = 'Analyse et traitement en cours…';
+  resultGrid.style.display = 'none';
+  btnDownload.style.display = 'none';
+  btnProcess.disabled = true;
+
+  const fd = new FormData();
+  fd.append('file', currentFile);
+
+  try {
+    const res = await fetch('/upload', { method: 'POST', body: fd });
+    const data = await res.json();
+
+    if (data.success) {
+      statusBar.className = 'status-bar success';
+      statusTxt.textContent = '✅ Traitement terminé avec succès !';
+      document.getElementById('stat-rows').textContent = data.rows;
+      document.getElementById('stat-emp').textContent  = data.employees;
+      resultGrid.style.display = 'grid';
+      btnDownload.style.display = 'flex';
+      btnDownload.onclick = () => { window.location = '/download/' + data.file_id; };
+    } else {
+      statusBar.className = 'status-bar error';
+      statusTxt.textContent = '❌ ' + (data.error || 'Erreur inconnue.');
+    }
+  } catch (err) {
+    statusBar.className = 'status-bar error';
+    statusTxt.textContent = '❌ Erreur de connexion au serveur.';
+  }
+
+  btnProcess.disabled = false;
+});
+</script>
+</body>
+</html>

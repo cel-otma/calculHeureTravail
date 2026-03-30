@@ -1,0 +1,46 @@
+from flask import Flask, request, send_file, jsonify
+import os, tempfile, uuid
+from process_pointage import process_pointage
+
+app = Flask(__name__)
+UPLOAD_DIR = tempfile.gettempdir()
+
+HTML = open(os.path.join(os.path.dirname(__file__), 'index.html'), encoding='utf-8').read()
+
+@app.route('/')
+def index():
+    return HTML, 200, {'Content-Type': 'text/html; charset=utf-8'}
+
+@app.route('/upload', methods=['POST'])
+def upload():
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'Aucun fichier envoyé.'}), 400
+    f = request.files['file']
+    if not f.filename.endswith(('.xlsx', '.xls')):
+        return jsonify({'success': False, 'error': 'Seuls les fichiers .xlsx / .xls sont acceptés.'}), 400
+
+    uid = uuid.uuid4().hex
+    in_path  = os.path.join(UPLOAD_DIR, f'pointage_in_{uid}.xlsx')
+    out_path = os.path.join(UPLOAD_DIR, f'pointage_out_{uid}.xlsx')
+    f.save(in_path)
+
+    result = process_pointage(in_path, out_path)
+    os.remove(in_path)
+
+    if not result['success']:
+        return jsonify(result), 422
+
+    result['file_id'] = uid
+    return jsonify(result)
+
+@app.route('/download/<uid>')
+def download(uid):
+    path = os.path.join(UPLOAD_DIR, f'pointage_out_{uid}.xlsx')
+    if not os.path.exists(path):
+        return jsonify({'error': 'Fichier introuvable.'}), 404
+    return send_file(path, as_attachment=True,
+                     download_name='pointage_traite.xlsx',
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+if __name__ == '__main__':
+    app.run(debug=False, port=5050)

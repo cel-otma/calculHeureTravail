@@ -1,0 +1,96 @@
+from flask import Flask, request, send_file, jsonify
+import os, tempfile, uuid
+from process_pointage import process_pointage
+
+app = Flask(__name__)
+UPLOAD_DIR = tempfile.gettempdir()
+
+HTML = open(os.path.join(os.path.dirname(__file__), 'index.html'), encoding='utf-8').read()
+
+@app.route('/')
+def index():
+    return HTML, 200, {'Content-Type': 'text/html; charset=utf-8'}
+
+@app.route('/diagnose', methods=['POST'])
+def diagnose():
+    if 'file' not in request.files:
+        return jsonify({'error': 'Aucun fichier'}), 400
+    f = request.files['file']
+    uid = uuid.uuid4().hex
+    in_path = os.path.join(UPLOAD_DIR, f'diag_{uid}.xlsx')
+    f.save(in_path)
+    try:
+        import pandas as pd, re
+        df = pd.read_excel(in_path, dtype=str)
+        cols = list(df.columns)
+        sample = df.head(5).to_dict(orient='records')
+        # Try to detect columns
+        col_map = {}
+        for col in df.columns:
+            cl = col.lower()
+            if 'date' in cl and 'col_date' not in col_map: col_map['col_date'] = col
+            elif 'heure' in cl and 'col_heure' not in col_map: col_map['col_heure'] = col
+            elif 'equipement' in cl or 'équipement' in cl: col_map['col_equip'] = col
+            elif 'utilisateur' in cl and 'col_user' not in col_map: col_map['col_user'] = col
+        # Sample equipment values
+        equip_samples = []
+        if 'col_equip' in col_map:
+            equip_samples = df[col_map['col_equip']].dropna().unique()[:10].tolist()
+        # Sample user values
+        user_samples = []
+        if 'col_user' in col_map:
+            user_samples = df[col_map['col_user']].dropna().unique()[:5].tolist()
+        # Sample date values
+        date_samples = []
+        if 'col_date' in col_map:
+            date_samples = df[col_map['col_date']].dropna().unique()[:5].tolist()
+        result = {
+            'total_rows': len(df),
+            'columns_found': cols,
+            'column_mapping': col_map,
+            'missing_columns': [k for k in ('col_date','col_heure','col_equip','col_user') if k not in col_map],
+            'sample_equipment': equip_samples,
+            'sample_users': user_samples,
+            'sample_dates': date_samples,
+            'first_5_rows': [{str(k): str(v) for k,v in row.items()} for row in sample]
+        }
+    except Exception as e:
+        result = {'error': str(e)}
+    finally:
+        try: os.remove(in_path)
+        except: pass
+    return jsonify(result)
+
+@app.route('/upload', methods=['POST'])
+def upload():
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'Aucun fichier envoyé.'}), 400
+    f = request.files['file']
+    if not f.filename.endswith(('.xlsx', '.xls')):
+        return jsonify({'success': False, 'error': 'Seuls les fichiers .xlsx / .xls sont acceptés.'}), 400
+
+    uid = uuid.uuid4().hex
+    in_path  = os.path.join(UPLOAD_DIR, f'pointage_in_{uid}.xlsx')
+    out_path = os.path.join(UPLOAD_DIR, f'pointage_out_{uid}.xlsx')
+    f.save(in_path)
+
+    result = process_pointage(in_path, out_path)
+    os.remove(in_path)
+
+    if not result['success']:
+        return jsonify(result), 422
+
+    result['file_id'] = uid
+    return jsonify(result)
+
+@app.route('/download/<uid>')
+def download(uid):
+    path = os.path.join(UPLOAD_DIR, f'pointage_out_{uid}.xlsx')
+    if not os.path.exists(path):
+        return jsonify({'error': 'Fichier introuvable.'}), 404
+    return send_file(path, as_attachment=True,
+                     download_name='pointage_traite.xlsx',
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+if __name__ == '__main__':
+    app.run(debug=False, port=5050)
